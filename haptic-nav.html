@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HapticNav</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3a;
+    --accent: #00e5ff;
+    --accent2: #7b5ea7;
+    --warn: #ff6b35;
+    --success: #00c896;
+    --text: #e8e8f0;
+    --muted: #6a6a8a;
+    --motor-front: #00e5ff;
+    --motor-right: #ff6b35;
+    --motor-back: #7b5ea7;
+    --motor-left: #00c896;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  .logo span { color: var(--text); }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .status-dot.connected {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.error { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Section labels */
+  .label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Input fields */
+  input[type="text"], input[type="url"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,229,255,0.1);
+  }
+
+  input::placeholder { color: var(--muted); }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* Buttons */
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    width: 100%;
+  }
+  .btn-primary:hover { background: #33eaff; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    flex: 1;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    width: 100%;
+  }
+  .btn-danger:hover { background: rgba(255,107,53,0.1); }
+
+  .btn-sm {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  /* Motor visualizer */
+  .motor-viz {
+    display: grid;
+    grid-template-areas:
+      ". front ."
+      "left center right"
+      ". back .";
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 16px 0;
+  }
+
+  .motor-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 8px;
+    border-radius: 10px;
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    aspect-ratio: 1;
+  }
+
+  .motor-btn .icon { font-size: 22px; }
+
+  .motor-btn[data-motor="front"] { grid-area: front; --mc: var(--motor-front); }
+  .motor-btn[data-motor="right"] { grid-area: right; --mc: var(--motor-right); }
+  .motor-btn[data-motor="back"]  { grid-area: back;  --mc: var(--motor-back); }
+  .motor-btn[data-motor="left"]  { grid-area: left;  --mc: var(--motor-left); }
+
+  .motor-center { grid-area: center; display: flex; align-items: center; justify-content: center; }
+  .person-icon { font-size: 36px; }
+
+  .motor-btn:hover {
+    border-color: var(--mc);
+    color: var(--mc);
+    background: color-mix(in srgb, var(--mc) 10%, var(--surface2));
+  }
+
+  .motor-btn.active {
+    border-color: var(--mc);
+    color: var(--mc);
+    background: color-mix(in srgb, var(--mc) 15%, var(--surface2));
+    box-shadow: 0 0 16px color-mix(in srgb, var(--mc) 40%, transparent);
+    animation: motorBuzz 0.5s ease;
+  }
+
+  @keyframes motorBuzz {
+    0%, 100% { transform: scale(1); }
+    25% { transform: scale(1.05) rotate(-1deg); }
+    75% { transform: scale(1.05) rotate(1deg); }
+  }
+
+  /* Steps list */
+  .steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .step-item:hover { border-color: var(--accent); }
+
+  .step-item.active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface2));
+  }
+
+  .step-item.completed {
+    opacity: 0.4;
+  }
+
+  .step-icon {
+    font-size: 20px;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .step-text { flex: 1; line-height: 1.4; }
+  .step-dist {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* Log */
+  .log {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    max-height: 100px;
+    overflow-y: auto;
+    line-height: 1.8;
+  }
+
+  .log .entry { display: block; }
+  .log .entry.ok { color: var(--success); }
+  .log .entry.err { color: var(--warn); }
+  .log .entry.info { color: var(--accent); }
+
+  /* GPS badge */
+  .gps-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .gps-badge.active { border-color: var(--success); color: var(--success); }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.5s ease;
+    border-radius: 2px;
+  }
+
+  /* Arrived banner */
+  .arrived-banner {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--success) 15%, var(--surface));
+    border: 2px solid var(--success);
+    animation: fadeIn 0.5s ease;
+  }
+
+  .arrived-banner.show { display: block; }
+  .arrived-banner .big { font-size: 48px; }
+  .arrived-banner h2 { font-size: 22px; font-weight: 600; color: var(--success); margin: 8px 0 4px; }
+  .arrived-banner p { color: var(--muted); font-size: 14px; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Current instruction */
+  .current-step {
+    display: none;
+    padding: 16px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border: 2px solid var(--accent);
+    margin-bottom: 16px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .current-step.show { display: block; }
+  .current-step .step-label { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--accent); margin-bottom: 8px; }
+  .current-step .step-instruction { font-size: 17px; font-weight: 500; line-height: 1.4; }
+  .current-step .step-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .row { display: flex; gap: 8px; }
+  .mt8 { margin-top: 8px; }
+  .mt12 { margin-top: 12px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">Haptic<span>Nav</span></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="gps-badge" id="gpsBadge">📍 GPS off</div>
+      <div class="status-dot" id="statusDot" title="Arduino connection"></div>
+    </div>
+  </header>
+
+  <!-- Config Card -->
+  <div class="card" id="configCard">
+    <div class="label">Configuration</div>
+
+    <div style="margin-bottom:10px;">
+      <div class="label" style="margin-bottom:4px;">Google Maps API Key</div>
+      <input type="text" id="apiKey" placeholder="AIza..." />
+    </div>
+
+    <div>
+      <div class="label" style="margin-bottom:4px;">Arduino IP Address</div>
+      <div class="input-row">
+        <input type="text" id="arduinoIp" placeholder="192.168.1.45" style="flex:1;" />
+        <button class="btn btn-secondary btn-sm" onclick="testConnection()">Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Destination Card -->
+  <div class="card">
+    <div class="label">Destination</div>
+    <input type="text" id="destination" placeholder="Where are you going?" />
+    <div class="mt8">
+      <button class="btn btn-primary" id="startBtn" onclick="startNavigation()">
+        ⬆ Start Navigation
+      </button>
+    </div>
+  </div>
+
+  <!-- Current Step (shown during navigation) -->
+  <div class="current-step" id="currentStep">
+    <div class="step-label">NEXT INSTRUCTION</div>
+    <div class="step-instruction" id="currentInstruction">—</div>
+    <div class="step-sub" id="currentDist"></div>
+  </div>
+
+  <!-- Arrived Banner -->
+  <div class="arrived-banner" id="arrivedBanner">
+    <div class="big">🎯</div>
+    <h2>You've arrived!</h2>
+    <p>Navigation complete</p>
+    <button class="btn btn-secondary btn-sm mt8" style="margin:12px auto 0;display:block;width:fit-content;" onclick="resetNav()">New destination</button>
+  </div>
+
+  <!-- Motor Test Card -->
+  <div class="card">
+    <div class="section-header">
+      <div class="label">Motor Test</div>
+      <div style="font-size:12px;color:var(--muted);">Tap to test each motor</div>
+    </div>
+    <div class="motor-viz">
+      <button class="motor-btn" data-motor="front" onclick="testMotor('front')">
+        <span class="icon">⬆</span>FRONT
+      </button>
+      <button class="motor-btn" data-motor="left" onclick="testMotor('left')">
+        <span class="icon">⬅</span>LEFT
+      </button>
+      <div class="motor-center">
+        <div class="person-icon">🧍</div>
+      </div>
+      <button class="motor-btn" data-motor="right" onclick="testMotor('right')">
+        <span class="icon">➡</span>RIGHT
+      </button>
+      <button class="motor-btn" data-motor="back" onclick="testMotor('back')">
+        <span class="icon">⬇</span>BACK
+      </button>
+    </div>
+  </div>
+
+  <!-- Steps Card (shown during navigation) -->
+  <div class="card" id="stepsCard" style="display:none;">
+    <div class="section-header">
+      <div class="label">Route Steps</div>
+      <div id="stepCounter" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">0/0</div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="steps-list" id="stepsList"></div>
+    <div class="row mt8">
+      <button class="btn btn-secondary btn-sm" onclick="prevStep()">← Prev</button>
+      <button class="btn btn-secondary btn-sm" onclick="nextStep()">Next →</button>
+      <button class="btn btn-danger btn-sm" onclick="resetNav()">Stop</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <div class="label" style="margin-bottom:6px;">Log</div>
+    <div class="log" id="log">
+      <span class="entry">HapticNav ready. Configure API key and Arduino IP above.</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const state = {
+  steps: [],
+  currentStep: 0,
+  watching: false,
+  watchId: null,
+  userLat: null,
+  userLng: null,
+  navigating: false,
+};
+
+// ─── Logging ──────────────────────────────────────────────────────────────────
+function log(msg, type = '') {
+  const el = document.getElementById('log');
+  const entry = document.createElement('span');
+  entry.className = `entry ${type}`;
+  const time = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  entry.textContent = `[${time}] ${msg}`;
+  el.appendChild(document.createElement('br'));
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Arduino communication ─────────────────────────────────────────────────
+async function sendToArduino(direction) {
+  const ip = document.getElementById('arduinoIp').value.trim();
+  if (!ip) { log('No Arduino IP set', 'err'); return false; }
+
+  const url = `http://${ip}/direction?dir=${direction}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      log(`→ Arduino: ${direction.toUpperCase()}`, 'ok');
+      flashMotor(direction);
+      return true;
+    } else {
+      log(`Arduino error: HTTP ${res.status}`, 'err');
+      return false;
+    }
+  } catch (e) {
+    log(`Arduino unreachable: ${e.message}`, 'err');
+    setStatus('error');
+    return false;
+  }
+}
+
+async function testConnection() {
+  const ip = document.getElementById('arduinoIp').value.trim();
+  if (!ip) { log('Enter Arduino IP first', 'err'); return; }
+  log(`Testing connection to ${ip}...`, 'info');
+  const ok = await sendToArduino('ping');
+  if (ok) { setStatus('connected'); log('Arduino connected!', 'ok'); }
+}
+
+function setStatus(s) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + s;
+}
+
+// ─── Motor flash UI ───────────────────────────────────────────────────────────
+function flashMotor(direction) {
+  const btn = document.querySelector(`[data-motor="${direction}"]`);
+  if (!btn) return;
+  btn.classList.add('active');
+  setTimeout(() => btn.classList.remove('active'), 600);
+}
+
+async function testMotor(dir) {
+  flashMotor(dir);
+  await sendToArduino(dir);
+}
+
+// ─── Maneuver → direction mapping ─────────────────────────────────────────────
+function maneuverToDirection(maneuver) {
+  if (!maneuver) return 'front';
+  const m = maneuver.toLowerCase();
+  if (m.includes('left'))  return 'left';
+  if (m.includes('right')) return 'right';
+  if (m.includes('uturn') || m.includes('u-turn')) return 'back';
+  return 'front';
+}
+
+function maneuverToEmoji(maneuver) {
+  if (!maneuver) return '⬆';
+  const m = maneuver.toLowerCase();
+  if (m.includes('turn-left') || m === 'turn-left') return '↰';
+  if (m.includes('turn-right') || m === 'turn-right') return '↱';
+  if (m.includes('sharp-left')) return '↩';
+  if (m.includes('sharp-right')) return '↪';
+  if (m.includes('slight-left')) return '↖';
+  if (m.includes('slight-right')) return '↗';
+  if (m.includes('uturn') || m.includes('u-turn')) return '↩↩';
+  if (m.includes('roundabout')) return '🔄';
+  if (m.includes('merge')) return '⬆';
+  if (m.includes('fork')) return '⬆';
+  if (m.includes('ferry')) return '⛴';
+  if (m.includes('destination')) return '🎯';
+  return '⬆';
+}
+
+function stripHtml(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || div.innerText || '';
+}
+
+function formatDist(meters) {
+  if (meters >= 1000) return (meters / 1000).toFixed(1) + ' km';
+  return Math.round(meters) + ' m';
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+async function startNavigation() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const dest   = document.getElementById('destination').value.trim();
+
+  if (!apiKey) { log('Enter your Google Maps API key', 'err'); return; }
+  if (!dest)   { log('Enter a destination', 'err'); return; }
+
+  document.getElementById('startBtn').disabled = true;
+  log(`Fetching route to "${dest}"...`, 'info');
+
+  // Get user position
+  let origin;
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
+    );
+    state.userLat = pos.coords.latitude;
+    state.userLng = pos.coords.longitude;
+    origin = `${state.userLat},${state.userLng}`;
+    log(`Your position: ${state.userLat.toFixed(5)}, ${state.userLng.toFixed(5)}`, 'ok');
+    updateGpsBadge(true);
+  } catch (e) {
+    log('GPS unavailable, using IP location fallback', 'err');
+    origin = 'current+location'; // fallback - won't be accurate
+    updateGpsBadge(false);
+  }
+
+  // Call Directions API
+  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&mode=walking&key=${apiKey}`;
+
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (data.status !== 'OK') {
+      log(`Directions API error: ${data.status} — ${data.error_message || ''}`, 'err');
+      document.getElementById('startBtn').disabled = false;
+      return;
+    }
+
+    const legs = data.routes[0].legs[0];
+    state.steps = legs.steps.map(s => ({
+      instruction: stripHtml(s.html_instructions),
+      maneuver:    s.maneuver || '',
+      distance:    s.distance.value,
+      distText:    s.distance.text,
+      startLat:    s.start_location.lat,
+      startLng:    s.start_location.lng,
+      endLat:      s.end_location.lat,
+      endLng:      s.end_location.lng,
+    }));
+
+    // Add arrival step
+    state.steps.push({
+      instruction: `Arrive at ${legs.end_address}`,
+      maneuver: 'destination',
+      distance: 0,
+      distText: '0 m',
+      startLat: legs.end_location.lat,
+      startLng: legs.end_location.lng,
+      endLat: legs.end_location.lat,
+      endLng: legs.end_location.lng,
+    });
+
+    state.currentStep = 0;
+    state.navigating = true;
+
+    log(`Route found: ${legs.distance.text}, ~${legs.duration.text}`, 'ok');
+    log(`${state.steps.length - 1} steps loaded`, 'ok');
+
+    renderSteps();
+    document.getElementById('stepsCard').style.display = 'block';
+    document.getElementById('startBtn').disabled = false;
+
+    goToStep(0);
+    startGpsWatch();
+
+  } catch (e) {
+    log(`Fetch error: ${e.message}`, 'err');
+    document.getElementById('startBtn').disabled = false;
+  }
+}
+
+function renderSteps() {
+  const list = document.getElementById('stepsList');
+  list.innerHTML = '';
+  state.steps.forEach((step, i) => {
+    const el = document.createElement('div');
+    el.className = 'step-item' + (i === state.currentStep ? ' active' : '') + (i < state.currentStep ? ' completed' : '');
+    el.innerHTML = `
+      <span class="step-icon">${maneuverToEmoji(step.maneuver)}</span>
+      <span class="step-text">${step.instruction}</span>
+      <span class="step-dist">${step.distText}</span>
+    `;
+    el.onclick = () => goToStep(i);
+    list.appendChild(el);
+    if (i === state.currentStep) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+  });
+  updateProgress();
+}
+
+async function goToStep(i) {
+  if (i >= state.steps.length) { arrive(); return; }
+
+  state.currentStep = i;
+  const step = state.steps[i];
+
+  // Update current step display
+  const cs = document.getElementById('currentStep');
+  cs.classList.add('show');
+  document.getElementById('currentInstruction').textContent = step.instruction;
+  document.getElementById('currentDist').textContent = step.distText + ' · ' + (maneuverToEmoji(step.maneuver) || '⬆');
+
+  // Update step list
+  renderSteps();
+
+  // Check if arrival
+  if (step.maneuver === 'destination') { arrive(); return; }
+
+  // Send to Arduino
+  const dir = maneuverToDirection(step.maneuver);
+  await sendToArduino(dir);
+  setStatus('connected');
+}
+
+function nextStep() { if (state.currentStep < state.steps.length - 1) goToStep(state.currentStep + 1); }
+function prevStep() { if (state.currentStep > 0) goToStep(state.currentStep - 1); }
+
+function arrive() {
+  log('🎯 Arrived at destination!', 'ok');
+  sendToArduino('arrive'); // all 4 motors pulse
+  document.getElementById('currentStep').classList.remove('show');
+  document.getElementById('arrivedBanner').classList.add('show');
+  stopGpsWatch();
+  state.navigating = false;
+}
+
+function resetNav() {
+  state.steps = [];
+  state.currentStep = 0;
+  state.navigating = false;
+  stopGpsWatch();
+  document.getElementById('stepsCard').style.display = 'none';
+  document.getElementById('arrivedBanner').classList.remove('show');
+  document.getElementById('currentStep').classList.remove('show');
+  document.getElementById('destination').value = '';
+  log('Navigation reset', 'info');
+}
+
+function updateProgress() {
+  const pct = state.steps.length > 1 ? (state.currentStep / (state.steps.length - 1)) * 100 : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('stepCounter').textContent = `${state.currentStep + 1}/${state.steps.length}`;
+}
+
+// ─── GPS Tracking ─────────────────────────────────────────────────────────────
+function startGpsWatch() {
+  if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
+  state.watchId = navigator.geolocation.watchPosition(onGpsUpdate, onGpsError, {
+    enableHighAccuracy: true,
+    maximumAge: 2000,
+    timeout: 10000,
+  });
+  log('GPS tracking started', 'ok');
+}
+
+function stopGpsWatch() {
+  if (state.watchId) {
+    navigator.geolocation.clearWatch(state.watchId);
+    state.watchId = null;
+  }
+  updateGpsBadge(false);
+}
+
+function onGpsUpdate(pos) {
+  state.userLat = pos.coords.latitude;
+  state.userLng = pos.coords.longitude;
+  updateGpsBadge(true);
+
+  if (!state.navigating || state.steps.length === 0) return;
+
+  const step = state.steps[state.currentStep];
+  if (!step) return;
+
+  // Distance to end of current step
+  const dist = haversine(state.userLat, state.userLng, step.endLat, step.endLng);
+
+  // Auto-advance if within 20 metres of step endpoint
+  if (dist < 20 && state.currentStep < state.steps.length - 1) {
+    log(`Reached waypoint, advancing to step ${state.currentStep + 2}`, 'info');
+    goToStep(state.currentStep + 1);
+  }
+}
+
+function onGpsError(err) {
+  log(`GPS error: ${err.message}`, 'err');
+  updateGpsBadge(false);
+}
+
+function updateGpsBadge(active) {
+  const b = document.getElementById('gpsBadge');
+  if (active) {
+    b.className = 'gps-badge active';
+    b.textContent = '📍 GPS on';
+  } else {
+    b.className = 'gps-badge';
+    b.textContent = '📍 GPS off';
+  }
+}
+
+// ─── Haversine distance (metres) ──────────────────────────────────────────────
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+</script>
+</body>
+</html>
